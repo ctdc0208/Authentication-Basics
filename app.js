@@ -1,4 +1,5 @@
 /////// app.js
+require('dotenv').config()
 
 const express = require("express");
 const path = require("path");
@@ -11,7 +12,7 @@ const mongoose = require("mongoose");
 mongoose.set("strictQuery", false);
 const Schema = mongoose.Schema;
 
-const mongoDB = "mongodb+srv://admin:MrHO0TGqCAAb2RRi@atlascluster.o8zy7ko.mongodb.net/?retryWrites=true&w=majority";
+const mongoDB = process.env.MONGODB_URL
 mongoose.connect(mongoDB);
 
 main().catch((err) => console.log(err));
@@ -44,11 +45,9 @@ passport.use(
             if (!user) {
                 return done(null, false, { message: "Incorrect username" });
             };
-            const match = await bcrypt.compare(password, user.password);
-            if (!match) {
-                // passwords do not match!
-                return done(null, false, { message: "Incorrect password" })
-            }
+            if (user.password !== password) {
+                return done(null, false, { message: "Incorrect password" });
+            };
             return done(null, user);
         } catch (err) {
             return done(err);
@@ -83,18 +82,16 @@ app.get("/sign-up", (req, res) => res.render("./template/sign-up-form"));
 //TODO: Fix bcrypt not working
 
 app.post("/sign-up", async (req, res, next) => {
-    const user = new User({
-        username: req.body.username
-    });
-
-    bcrypt.hash(req.body.password, 10, async (error, hashedPassword) => {
-        if (error) { return next(error); }
-        user.set('password', hashedPassword);
-        await user.save(error => {
-            if (error) { return next(error); }
-            return res.status(200).json(user);
-        })
-    });
+    try {
+        const user = new User({
+            username: req.body.username,
+            password: req.body.password
+        });
+        const result = await user.save();
+        res.redirect("/");
+    } catch (err) {
+        return next(err);
+    };
 });
 
 app.post(
