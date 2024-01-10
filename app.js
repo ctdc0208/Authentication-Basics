@@ -33,11 +33,6 @@ const app = express();
 app.set("views", __dirname);
 app.set("view engine", "ejs");
 
-app.use(session({ secret: "cats", resave: false, saveUninitialized: true }));
-app.use(passport.initialize());
-app.use(passport.session());
-app.use(express.urlencoded({ extended: false }));
-
 passport.use(
     new LocalStrategy(async (username, password, done) => {
         try {
@@ -45,15 +40,22 @@ passport.use(
             if (!user) {
                 return done(null, false, { message: "Incorrect username" });
             };
-            if (user.password !== password) {
-                return done(null, false, { message: "Incorrect password" });
-            };
+            const match = await bcrypt.compare(password, user.password);
+            if (!match) {
+                // passwords do not match!
+                return done(null, false, { message: "Incorrect password" })
+            }
             return done(null, user);
         } catch (err) {
             return done(err);
         };
     })
 );
+
+app.use(session({ secret: "cats", resave: false, saveUninitialized: true }));
+app.use(passport.initialize());
+app.use(passport.session());
+app.use(express.urlencoded({ extended: false }));
 
 passport.serializeUser((user, done) => {
     done(null, user.id);
@@ -82,16 +84,18 @@ app.get("/sign-up", (req, res) => res.render("./template/sign-up-form"));
 //TODO: Fix bcrypt not working
 
 app.post("/sign-up", async (req, res, next) => {
-    try {
-        const user = new User({
-            username: req.body.username,
-            password: req.body.password
-        });
-        const result = await user.save();
-        res.redirect("/");
-    } catch (err) {
-        return next(err);
-    };
+  try {
+    const hashedPassword = await bcrypt.hash(req.body.password, 10)
+
+    const user = new User({
+      username: req.body.username,
+       password: hashedPassword,
+    });
+    const result = await user.save();
+    res.redirect("/");
+  } catch(err) {
+    return next(err);
+  };
 });
 
 app.post(
